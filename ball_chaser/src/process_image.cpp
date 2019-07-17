@@ -1,6 +1,10 @@
 #include "ros/ros.h"
 #include "ball_chaser/DriveToTarget.h"
 #include <sensor_msgs/Image.h>
+#include <algorithm>
+#include <vector>
+
+using namespace std;
 
 ros::ServiceClient client;
 
@@ -19,46 +23,43 @@ void process_image_callback(const sensor_msgs::Image img)
 {
 	int white_pixel = 255;
 
-	int left = 0, forward = 0, right = 0; 
 	int leftRange = img.width/3;
-	int rightRange = img.width*2/3;
+	int rightRange = (img.width/3)*2;
+	int step;
 
-	    for(int i=0;i<img.height*img.width*3;i += 3)
-	    {
-		// If image pixel is white
-		if(img.data[i]==white_pixel && img.data[i+1]==white_pixel && img.data[i+2]==white_pixel)
+	int lcount = 0, rcount = 0, fcount = 0;
+
+	for(int pixel=0; pixel < img.height * img.step; pixel+=3)
+	{
+
+		if(img.data[pixel] == white_pixel && img.data[pixel+1] == white_pixel && img.data[pixel+2] == white_pixel)
 		{
-		    int position = i % (img.width*3) / 3;
-		    if(position<leftRange)
-		        left++;
-		    else if(position>=rightRange)
-		        right++;
-		    else if(position>=leftRange && position<rightRange)
-		        forward++;
+			int position = pixel % (img.width * 3) / 3;
+			if(position < leftRange)
+				lcount++;
+			else if(position >= leftRange && position < rightRange)
+				fcount++;
+			else if(position >= rightRange)
+				rcount++;
 		}
-	    }
 
-	if(left + forward + right == 0) drive_robot(0.0, 0.0);
-	else if(left > forward)
-	{
-		if(left > right)
-			drive_robot(0.2, 0.1);
-		else
-			drive_robot(0.2, -0.1);
-	}else if(left < forward)
-	{
-		if(forward > right)
-			drive_robot(1.0, 0.0);
-		else
-			drive_robot(0.2, -0.1);
 	}
 
+	vector <int> counts{lcount, rcount, fcount};
+	int move = *max_element(counts.begin(), counts.end());
 
+	if(move == 0)
+		drive_robot(0.0, 0.0);
+	else if (move == lcount)
+		drive_robot(0.0, 0.2);
+	else if (move == rcount)
+		drive_robot(0.0, -0.2);
+	else if (move == fcount)
+		drive_robot(1.0, 0.0);
 }
 
 int main(int argc, char** argv)
 {
-
 	ros::init(argc, argv, "process_image");
 	ros::NodeHandle n;
 
